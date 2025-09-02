@@ -51,6 +51,29 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# Function to solve lambda cubic for fourth-degree loss
+def solve_lambda_cubic(alpha, beta):
+    # Moments
+    E1 = alpha / beta
+    E2 = alpha * (alpha + 1) / (beta**2)
+    E3 = alpha * (alpha + 1) * (alpha + 2) / (beta**3)
+    # Coefficients for lambda^3 - 3 E1 lambda^2 + 3 E2 lambda - E3 = 0
+    coefs = [1.0, -3.0*E1, 3.0*E2, -E3]
+    r = np.roots(coefs)
+    # Filter approximate real roots
+    real_roots = [np.real(x) for x in r if abs(np.imag(x)) < 1e-8]
+    # Keep positive real roots
+    pos_real = [x for x in real_roots if x > 0]
+    if len(pos_real) == 1:
+        return float(pos_real[0])
+    if len(pos_real) > 1:
+        # Choose the root closest to the posterior mean E1
+        cand = min(pos_real, key=lambda x: abs(x - E1))
+        return float(cand)
+    # If no positive real root found, choose real part of root with smallest imag
+    r_sorted = sorted(r, key=lambda z: (abs(np.imag(z)), -np.real(z)))
+    return float(np.real(r_sorted[0]))
+
 # Sidebar untuk unggah file dan pengaturan
 with st.sidebar:
     st.header("⚙️ Pengaturan")
@@ -84,11 +107,9 @@ if uploaded_file is not None:
         # Bagian 1: Tampilkan Data
         with st.container():
             st.header("📋 Data yang Diunggah")
-            # Display only the first 100 rows to improve performance
             st.write("**Pratinjau (100 baris pertama):**")
             st.dataframe(df.head(100).style.highlight_null(props='background-color:red').set_caption("Pratinjau Data (100 Baris Pertama)"), use_container_width=True)
             st.write(f"**Total Baris:** {len(df)} | **Total Kolom:** {len(df.columns)} | **Total Sel:** {len(df) * len(df.columns)}")
-            # Option to download full DataFrame
             csv = df.to_csv(index=False)
             st.download_button("📥 Unduh DataFrame Lengkap (CSV)", csv, "data_full.csv", "text/csv")
 
@@ -159,7 +180,7 @@ if uploaded_file is not None:
             # Bagian 3: Pilih Loss Function
             with st.container():
                 st.header("⚖️ Pilih Loss Function")
-                loss_function = st.radio("Jenis loss function:", ("Squared-Error Loss", "Absolute Loss Function"), horizontal=True)
+                loss_function = st.radio("Jenis loss function:", ("Squared-Error Loss", "Absolute Loss Function", "Fourth-Degree Loss"), horizontal=True)
 
             # Bagian 4: Pengaturan Premi
             with st.container():
@@ -182,7 +203,7 @@ if uploaded_file is not None:
                 st.header("🔢 Input Nilai Maksimum k dan t")
                 col1, col2 = st.columns(2)
                 with col1:
-                    max_k = st.number_input("Maksimum k:", min_value=0, max_value=25, step=1, value=7)
+                    max_k = st.number_input("Maksimum k:", min_value=0, max_value=25, step=1, value=4)
                 with col2:
                     max_t = st.number_input("Maksimum t:", min_value=0, max_value=25, step=1, value=7)
 
@@ -190,23 +211,21 @@ if uploaded_file is not None:
             with st.container():
                 st.header("🏆 Premi Sistem Bonus-Malus Optimal")
                 with st.spinner("Menghitung premi bonus-malus..."):
+                    t_vals = np.arange(0, max_t + 1)
+                    k_vals = np.arange(0, max_k + 1)
+                    result = np.zeros((len(t_vals), len(k_vals)))
+                    
                     if loss_function == "Squared-Error Loss":
-                        t_vals = np.arange(0, max_t + 1)
-                        k_vals = np.arange(0, max_k + 1)
-                        result = np.zeros((len(t_vals), len(k_vals)))
                         for t_idx, t in enumerate(t_vals):
                             for k_idx, k in enumerate(k_vals):
                                 if t == 0 and k != 0:
                                     result[t_idx, k_idx] = np.nan
                                 else:
                                     result[t_idx, k_idx] = premium_value * ((tau * (aa + k)) / (aa * (tau + t)))
-                        result_df = pd.DataFrame(result, index=[f"t={t}" for t in t_vals], columns=[f"k={k}" for k in k_vals]).round(2)
                         st.write("**Premi (Squared-Error Loss)**")
-                    else:
+                    
+                    elif loss_function == "Absolute Loss Function":
                         baseline_median = gamma.ppf(0.5, a=aa, scale=1.0/tau)
-                        t_vals = np.arange(0, max_t + 1)
-                        k_vals = np.arange(0, max_k + 1)
-                        result = np.zeros((len(t_vals), len(k_vals)))
                         for t_idx, t in enumerate(t_vals):
                             for k_idx, k in enumerate(k_vals):
                                 if t == 0 and k != 0:
@@ -216,10 +235,23 @@ if uploaded_file is not None:
                                     rate = tau + t
                                     post_median = gamma.ppf(0.5, a=alpha, scale=1.0/rate)
                                     result[t_idx, k_idx] = premium_value * (post_median / baseline_median)
-                        result_df = pd.DataFrame(result, index=[f"t={t}" for t in t_vals], columns=[f"k={k}" for k in k_vals]).round(2)
                         st.write("**Premi (Absolute Loss Function)**")
+                    
+                    else:  # Fourth-Degree Loss
+                        baseline_lambda = solve_lambda_cubic(aa, tau)
+                        for t_idx, t in enumerate(t_vals):
+                            for k_idx, k in enumerate(k_vals):
+                                if t == 0 and k != 0:
+                                    result[t_idx, k_idx] = np.nan
+                                else:
+                                    alpha = aa + k
+                                    rate = tau + t
+                                    lam = solve_lambda_cubic(alpha, rate)
+                                    result[t_idx, k_idx] = premium_value * (lam / baseline_lambda)
+                        st.write("**Premi (Fourth-Degree Loss)**")
 
                     # Tampilkan tabel
+                    result_df = pd.DataFrame(result, index=[f"t={t}" for t in t_vals], columns=[f"k={k}" for k in k_vals]).round(2)
                     st.dataframe(result_df.style.format(na_rep="").format(lambda x: f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")).background_gradient(cmap='Blues', axis=None).set_caption("Tabel Premi Bonus-Malus"), use_container_width=True)
 
     except Exception as e:
