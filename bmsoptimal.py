@@ -109,7 +109,7 @@ if uploaded_file is not None:
             st.header("📋 Data yang Diunggah")
             st.write("**Pratinjau (100 baris pertama):**")
             st.dataframe(df.head(100).style.highlight_null(props='background-color:red').set_caption("Pratinjau Data (100 Baris Pertama)"), use_container_width=True)
-            st.write(f"**Total Baris:** {len(df)} | **Total Kolom:** {len(df.columns)} | **Total Sel:** {len(df) * len(df.columns)}")
+            st.write(f"**Total Baris:** {len(df)} | **Total Kolom:** {len(df.columns)}")
             csv = df.to_csv(index=False)
             st.download_button("📥 Unduh DataFrame Lengkap (CSV)", csv, "data_full.csv", "text/csv")
 
