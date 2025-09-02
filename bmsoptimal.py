@@ -74,6 +74,26 @@ def solve_lambda_cubic(alpha, beta):
     r_sorted = sorted(r, key=lambda z: (abs(np.imag(z)), -np.real(z)))
     return float(np.real(r_sorted[0]))
 
+# Cached function to load and validate file
+@st.cache_data
+def load_data(uploaded_file):
+    if uploaded_file.name.endswith('.csv'):
+        df = pd.read_csv(uploaded_file)
+    else:
+        df = pd.read_excel(uploaded_file)
+    
+    # Validasi bahwa df adalah DataFrame
+    if not isinstance(df, pd.DataFrame):
+        st.error(f"❌ File tidak menghasilkan DataFrame yang valid. Tipe data: {type(df)}")
+        return None
+    
+    # Validasi bahwa DataFrame tidak kosong dan memiliki kolom
+    if df.empty or len(df.columns) == 0:
+        st.error("❌ DataFrame kosong atau tidak memiliki kolom. Pastikan file berisi data tabular.")
+        return None
+    
+    return df
+
 # Sidebar untuk unggah file dan pengaturan
 with st.sidebar:
     st.header("⚙️ Pengaturan")
@@ -88,20 +108,9 @@ st.markdown("Aplikasi ini membantu dalam menghitung premi bonus-malus optimal be
 # Konten utama
 if uploaded_file is not None:
     try:
-        # Membaca file dengan penanganan error yang lebih ketat
-        if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
-
-        # Validasi bahwa df adalah DataFrame
-        if not isinstance(df, pd.DataFrame):
-            st.error(f"❌ File tidak menghasilkan DataFrame yang valid. Tipe data: {type(df)}")
-            st.stop()
-
-        # Validasi bahwa DataFrame tidak kosong dan memiliki kolom
-        if df.empty or len(df.columns) == 0:
-            st.error("❌ DataFrame kosong atau tidak memiliki kolom. Pastikan file berisi data tabular.")
+        # Load data using cached function
+        df = load_data(uploaded_file)
+        if df is None:
             st.stop()
 
         # Bagian 1: Tampilkan Data
