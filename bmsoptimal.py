@@ -97,7 +97,7 @@ def load_data(uploaded_file):
 # Sidebar untuk unggah file dan pengaturan
 with st.sidebar:
     st.header("⚙️ Pengaturan")
-    st.markdown("[Dataset](https://bit.ly/DatasetSkripsiRevaldyHazzaDaniswara)")
+    st.markdown("[Dataset yang dapat digunakan](https://bit.ly/DatasetSkripsiRevaldyHazzaDaniswara)")
     uploaded_file = st.file_uploader("📂 Unggah file CSV/XLSX", type=["csv", "xlsx"], help="Unggah file data klaim (CSV atau XLSX).")
     st.markdown("---")
     st.info("Gunakan sidebar untuk mengunggah data dan atur parameter dasar.")
